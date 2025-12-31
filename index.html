@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Strike: Industrial Edition</title>
+    <style>
+        :root {
+            --primary: #00f2ff;
+            --secondary: #ff0055;
+            --surface: #0a0a12;
+            --panel: rgba(20, 20, 35, 0.85);
+            --fuel: #ffcc00;
+            --border: rgba(0, 242, 255, 0.3);
+            --glitch-offset: 2px;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--surface);
+            font-family: 'Orbitron', sans-serif;
+            touch-action: none;
+            color: white;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #05050a 100%);
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* --- Professional HUD --- */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            padding: 30px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .stat-box {
+            background: var(--panel);
+            border-left: 4px solid var(--primary);
+            padding: 12px 24px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            border-right: 1px solid rgba(255,255,255,0.05);
+            clip-path: polygon(0 0, 100% 0, 90% 100%, 0% 100%);
+        }
+
+        .label {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: var(--primary);
+            margin-bottom: 6px;
+            font-weight: 700;
+            opacity: 0.8;
+        }
+
+        #score-board {
+            font-size: 28px;
+            font-weight: 900;
+            font-family: 'JetBrains Mono', monospace;
+            text-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
+        }
+
+        .fuel-container {
+            width: 220px;
+            clip-path: polygon(10% 0, 100% 0, 100% 100%, 0% 100%);
+            border-left: none;
+            border-right: 4px solid var(--fuel);
+            text-align: right;
+        }
+
+        #fuel-bar-outer {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 0;
+            overflow: hidden;
+            position: relative;
+            margin-top: 8px;
+        }
+
+        #fuel-fill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, var(--fuel));
+            box-shadow: 0 0 15px var(--fuel);
+            transition: width 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* --- Input Interfaces --- */
+        .joystick-base {
+            position: absolute;
+            bottom: 60px;
+            width: 140px;
+            height: 140px;
+            background: radial-gradient(circle, rgba(0, 242, 255, 0.03) 0%, rgba(255,255,255,0.02) 100%);
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(2px);
+        }
+
+        #move-joystick { left: 60px; }
+        #aim-joystick { right: 60px; border-color: rgba(255, 0, 85, 0.3); }
+
+        .knob {
+            width: 50px;
+            height: 50px;
+            background: var(--panel);
+            border: 2px solid var(--primary);
+            border-radius: 50%;
+            box-shadow: 0 0 25px rgba(0, 242, 255, 0.25);
+            position: absolute;
+            transition: border-color 0.2s;
+        }
+
+        #aim-knob { border-color: var(--secondary); box-shadow: 0 0 25px rgba(255, 0, 85, 0.25); }
+
+        /* --- Industrial Menus --- */
+        #menu-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(5, 5, 10, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(15px);
+        }
+
+        .menu-card {
+            background: var(--panel);
+            padding: 50px 80px;
+            border: 1px solid var(--border);
+            text-align: center;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.9);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .menu-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 2px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+        }
+
+        h1 {
+            font-size: 56px;
+            margin: 0;
+            font-weight: 900;
+            background: linear-gradient(to bottom, #fff 30%, var(--primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 12px;
+            filter: drop-shadow(0 0 15px rgba(0, 242, 255, 0.3));
+        }
+
+        .status-tag {
+            color: var(--primary);
+            font-size: 11px;
+            letter-spacing: 5px;
+            margin: 15px 0 40px 0;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        .btn-start {
+            padding: 18px 60px;
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: 'Orbitron';
+            transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+            position: relative;
+        }
+
+        .btn-start:hover {
+            background: var(--primary);
+            color: var(--surface);
+            box-shadow: 0 0 40px var(--primary);
+            transform: scale(1.05);
+        }
+
+        .high-score {
+            margin-top: 30px;
+            color: rgba(255,255,255,0.3);
+            font-size: 13px;
+            letter-spacing: 2px;
+            font-family: 'JetBrains Mono';
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="stat-box">
+                <div class="label">Unit / Performance</div>
+                <div id="score-board">000000</div>
+            </div>
+            <div class="stat-box fuel-container">
+                <div class="label">Reactor Core Status</div>
+                <div id="fuel-bar-outer"><div id="fuel-fill"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="move-joystick" class="joystick-base"><div id="move-knob" class="knob"></div></div>
+    <div id="aim-joystick" class="joystick-base"><div id="aim-knob" class="knob"></div></div>
+
+    <div id="menu-overlay">
+        <div class="menu-card">
+            <h1 id="menu-title">NEON STRIKE</h1>
+            <p class="status-tag">Industrial Protocol // Active</p>
+            <button class="btn-start" onclick="startGame()">Initiate Link</button>
+            <div id="high-score" class="high-score">System Best // 000000</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreElement = document.getElementById('score-board');
+    const fuelFill = document.getElementById('fuel-fill');
+    const menuOverlay = document.getElementById('menu-overlay');
+    const menuTitle = document.getElementById('menu-title');
+    const highScoreElement = document.getElementById('high-score');
+
+    let width, height;
+    let score = 0;
+    let highScore = localStorage.getItem('neon_strike_pro_v2') || 0;
+    highScoreElement.innerText = `System Best // ${highScore.toString().padStart(6, '0')}`;
+    
+    let gameActive = false;
+    let player;
+    let enemies = [];
+    let bullets = [];
+    let particles = [];
+    let frameCount = 0;
+    
+    const GRAVITY = 0.2;
+    const FRICTION = 0.96;
+
+    let inputs = {
+        move: { active: false, x: 0, y: 0, identifier: null },
+        aim: { active: false, x: 0, y: 0, identifier: null }
+    };
+
+    function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- Interaction Logic ---
+    function setupJoystick(elementId, knobId, inputKey) {
+        const el = document.getElementById(elementId);
+        const knob = document.getElementById(knobId);
+
+        const handleStart = (e) => {
+            e.preventDefault();
+            const touch = e.type.includes('touch') ? e.changedTouches[0] : e;
+            inputs[inputKey].active = true;
+            inputs[inputKey].identifier = touch.identifier || 'mouse';
+            updateJoystick(touch, el, knob, inputKey);
+        };
+
+        const handleMove = (e) => {
+            const touches = e.type.includes('touch') ? e.changedTouches : [e];
+            for (let i = 0; i < touches.length; i++) {
+                const t = touches[i];
+                if (inputs[inputKey].active && (t.identifier === inputs[inputKey].identifier || t.identifier === undefined)) {
+                    updateJoystick(t, el, knob, inputKey);
+                }
+            }
+        };
+
+        const handleEnd = (e) => {
+            inputs[inputKey].active = false;
+            inputs[inputKey].x = 0;
+            inputs[inputKey].y = 0;
+            knob.style.transform = `translate(0, 0)`;
+        };
+
+        el.addEventListener('touchstart', handleStart, {passive: false});
+        window.addEventListener('touchmove', handleMove, {passive: false});
+        window.addEventListener('touchend', handleEnd);
+    }
+
+    function updateJoystick(touch, el, knob, inputKey) {
+        const rect = el.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        let dx = touch.clientX - centerX;
+        let dy = touch.clientY - centerY;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const maxDist = rect.width / 2;
+
+        if (dist > maxDist) {
+            dx = (dx / dist) * maxDist;
+            dy = (dy / dist) * maxDist;
+        }
+
+        inputs[inputKey].x = dx / maxDist;
+        inputs[inputKey].y = dy / maxDist;
+        knob.style.transform = `translate(${dx}px, ${dy}px)`;
+    }
+
+    setupJoystick('move-joystick', 'move-knob', 'move');
+    setupJoystick('aim-joystick', 'aim-knob', 'aim');
+
+    // --- Entity Logic ---
+    class Player {
+        constructor() {
+            this.x = width / 2;
+            this.y = height - 120;
+            this.radius = 18;
+            this.vx = 0;
+            this.vy = 0;
+            this.fuel = 100;
+            this.maxFuel = 100;
+            this.lastFire = 0;
+            this.fireRate = 110;
+            this.rotation = 0;
+            this.corePulse = 0;
+        }
+
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            
+            // Industrial Engine Flame
+            if (inputs.move.active && inputs.move.y < -0.15 && this.fuel > 0) {
+                const fH = 20 + Math.random() * 20;
+                const grad = ctx.createLinearGradient(0, 15, 0, 15 + fH);
+                grad.addColorStop(0, '#fff');
+                grad.addColorStop(0.3, varProp('--primary'));
+                grad.addColorStop(1, 'transparent');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.moveTo(-10, 15);
+                ctx.lineTo(10, 15);
+                ctx.lineTo(0, 15 + fH);
+                ctx.fill();
+            }
+
+            // Body Frame
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = varProp('--primary');
+            ctx.strokeStyle = varProp('--primary');
+            ctx.lineWidth = 2.5;
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Reactor Core
+            this.corePulse += 0.1;
+            ctx.fillStyle = `rgba(0, 242, 255, ${0.15 + Math.sin(this.corePulse) * 0.1})`;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius - 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Aim Visor
+            ctx.rotate(this.rotation);
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.roundRect(8, -5, 12, 10, 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        update() {
+            if (inputs.move.active) {
+                if (inputs.move.y < -0.1 && this.fuel > 0) {
+                    this.vy += inputs.move.y * 0.55;
+                    this.fuel -= 0.65;
+                    for(let i=0; i<3; i++) particles.push(new Particle(this.x, this.y + 15, varProp('--primary'), 0.4));
+                }
+                this.vx += inputs.move.x * 0.45;
+            } else {
+                if (this.fuel < this.maxFuel) this.fuel += 0.3;
+            }
+
+            this.vy += GRAVITY;
+            this.vx *= FRICTION;
+            this.vy *= FRICTION;
+            this.x += this.vx;
+            this.y += this.vy;
+
+            // Boundaries
+            if (this.x < this.radius) { this.x = this.radius; this.vx = 0; }
+            if (this.x > width - this.radius) { this.x = width - this.radius; this.vx = 0; }
+            if (this.y < this.radius) { this.y = this.radius; this.vy = 0; }
+            if (this.y > height - this.radius) { 
+                this.y = height - this.radius; 
+                this.vy = 0; 
+                this.fuel = Math.min(this.maxFuel, this.fuel + 0.6); 
+            }
+
+            fuelFill.style.width = `${(this.fuel / this.maxFuel) * 100}%`;
+
+            if (inputs.aim.active) {
+                this.rotation = Math.atan2(inputs.aim.y, inputs.aim.x);
+                const now = Date.now();
+                if (now - this.lastFire > this.fireRate) {
+                    bullets.push(new Bullet(this.x, this.y, inputs.aim.x, inputs.aim.y));
+                    this.lastFire = now;
+                    // Recoil logic
+                    this.vx -= inputs.aim.x * 1.2;
+                    this.vy -= inputs.aim.y * 1.2;
+                }
+            }
+        }
+    }
+
+    class Enemy {
+        constructor() {
+            const side = Math.floor(Math.random() * 4);
+            if (side === 0) { this.x = -40; this.y = Math.random() * height; }
+            else if (side === 1) { this.x = width + 40; this.y = Math.random() * height; }
+            else if (side === 2) { this.x = Math.random() * width; this.y = -40; }
+            else { this.x = Math.random() * width; this.y = height + 40; }
+
+            this.radius = 16 + Math.random() * 8;
+            this.speed = 1.6 + (score / 2000);
+            this.color = varProp('--secondary');
+            this.pulse = Math.random() * 10;
+        }
+
+        update() {
+            const angle = Math.atan2(player.y - this.y, player.x - this.x);
+            this.x += Math.cos(angle) * this.speed;
+            this.y += Math.sin(angle) * this.speed;
+            this.pulse += 0.12;
+        }
+
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.shadowBlur = 20 + Math.sin(this.pulse) * 8;
+            ctx.shadowColor = this.color;
+            
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            // Sharp Hexagonal Design
+            for(let i=0; i<6; i++) {
+                const r = this.radius + Math.sin(this.pulse) * 2;
+                const ax = Math.cos(i * Math.PI/3) * r;
+                const ay = Math.sin(i * Math.PI/3) * r;
+                if(i===0) ctx.moveTo(ax, ay); else ctx.lineTo(ax, ay);
+            }
+            ctx.closePath();
+            ctx.stroke();
+            
+            ctx.fillStyle = 'rgba(255, 0, 85, 0.15)';
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    class Bullet {
+        constructor(x, y, dx, dy) {
+            const angle = Math.atan2(dy, dx);
+            this.x = x + Math.cos(angle) * 25;
+            this.y = y + Math.sin(angle) * 25;
+            this.vx = Math.cos(angle) * 16;
+            this.vy = Math.sin(angle) * 16;
+            this.history = [];
+        }
+
+        update() {
+            this.history.unshift({x: this.x, y: this.y});
+            if(this.history.length > 5) this.history.pop();
+            this.x += this.vx; 
+            this.y += this.vy; 
+        }
+
+        draw() {
+            // Trail
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(0, 242, 255, 0.3)';
+            ctx.lineWidth = 2;
+            this.history.forEach((pos, i) => {
+                if(i === 0) ctx.moveTo(pos.x, pos.y);
+                else ctx.lineTo(pos.x, pos.y);
+            });
+            ctx.stroke();
+
+            // Head
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = varProp('--primary');
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 4, 0, Math.PI*2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    class Particle {
+        constructor(x, y, color, speedScale = 1) {
+            this.x = x; this.y = y; this.color = color;
+            this.vx = (Math.random() - 0.5) * 8 * speedScale;
+            this.vy = (Math.random() - 0.5) * 8 * speedScale;
+            this.life = 1.0;
+            this.size = 1.5 + Math.random() * 4;
+        }
+        update() { this.x += this.vx; this.y += this.vy; this.life -= 0.03; }
+        draw() {
+            ctx.globalAlpha = this.life;
+            ctx.fillStyle = this.color;
+            ctx.fillRect(this.x, this.y, this.size, this.size);
+            ctx.globalAlpha = 1.0;
+        }
+    }
+
+    // --- Utility ---
+    function varProp(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    function drawParallaxGrid() {
+        const spacing = 60;
+        const pX = (player ? player.x : 0) * 0.05;
+        const pY = (player ? player.y : 0) * 0.05;
+        
+        ctx.strokeStyle = 'rgba(0, 242, 255, 0.06)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for(let x = -pX % spacing; x < width; x += spacing) {
+            ctx.moveTo(x, 0); ctx.lineTo(x, height);
+        }
+        for(let y = -pY % spacing; y < height; y += spacing) {
+            ctx.moveTo(0, y); ctx.lineTo(width, y);
+        }
+        ctx.stroke();
+    }
+
+    function startGame() {
+        gameActive = true;
+        score = 0;
+        enemies = [];
+        bullets = [];
+        particles = [];
+        player = new Player();
+        scoreElement.innerText = "000000";
+        menuOverlay.style.display = 'none';
+        requestAnimationFrame(gameLoop);
+    }
+
+    function gameOver() {
+        gameActive = false;
+        menuOverlay.style.display = 'flex';
+        menuTitle.innerText = "PROTOCOL FAILED";
+        if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('neon_strike_pro_v2', highScore);
+            highScoreElement.innerText = `System Best // ${highScore.toString().padStart(6, '0')}`;
+        }
+    }
+
+    function gameLoop() {
+        if (!gameActive) return;
+
+        // Industrial Backdrop
+        ctx.fillStyle = '#05050a';
+        ctx.fillRect(0, 0, width, height);
+
+        drawParallaxGrid();
+
+        player.update();
+        player.draw();
+
+        // Dynamic Enemy Scaling
+        if (frameCount % Math.max(15, 70 - Math.floor(score/300)) === 0) {
+            enemies.push(new Enemy());
+        }
+
+        bullets = bullets.filter(b => {
+            b.update();
+            b.draw();
+            return b.x > -100 && b.x < width+100 && b.y > -100 && b.y < height+100;
+        });
+
+        enemies.forEach((enemy, eIdx) => {
+            enemy.update();
+            enemy.draw();
+
+            // Collision check
+            const dist = Math.hypot(enemy.x - player.x, enemy.y - player.y);
+            if (dist < enemy.radius + player.radius - 4) {
+                gameOver();
+            }
+
+            // Bullet hit
+            bullets.forEach((bullet, bIdx) => {
+                if (Math.hypot(enemy.x - bullet.x, enemy.y - bullet.y) < enemy.radius + 6) {
+                    for(let i=0; i<20; i++) particles.push(new Particle(enemy.x, enemy.y, enemy.color));
+                    enemies.splice(eIdx, 1);
+                    bullets.splice(bIdx, 1);
+                    score += 100;
+                    scoreElement.innerText = score.toString().padStart(6, '0');
+                }
+            });
+        });
+
+        particles = particles.filter(p => {
+            p.update();
+            p.draw();
+            return p.life > 0;
+        });
+
+        frameCount++;
+        requestAnimationFrame(gameLoop);
+    }
+</script>
+</body>
+</html>
